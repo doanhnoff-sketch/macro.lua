@@ -1,0 +1,56 @@
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local rootPart = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
+
+-- Cấu hình mượt mà như người thật
+local MAX_DISTANCE = 40 
+local TURN_SPEED = 0.04 -- Giảm xuống nữa nếu muốn xoay chậm hơn (người thật thường xoay chậm)
+local STOP_ANGLE = 5 -- Nếu lệch dưới 5 độ thì không xoay (giúp đứng im tự nhiên)
+
+local function getClosestPlayer()
+    local closestPlayer = nil
+    local shortestDistance = MAX_DISTANCE
+
+    for _, otherPlayer in pairs(Players:GetPlayers()) do
+        if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local distance = (rootPart.Position - otherPlayer.Character.HumanoidRootPart.Position).Magnitude
+            if distance < shortestDistance then
+                shortestDistance = distance
+                closestPlayer = otherPlayer
+            end
+        end
+    end
+    return closestPlayer
+end
+
+RunService.RenderStepped:Connect(function()
+    local targetPlayer = getClosestPlayer()
+    
+    if targetPlayer and targetPlayer.Character then
+        local targetRoot = targetPlayer.Character.HumanoidRootPart
+        local targetPos = Vector3.new(targetRoot.Position.X, rootPart.Position.Y, targetRoot.Position.Z)
+        
+        -- Hướng mà nhân vật cần nhìn theo
+        local targetCFrame = CFrame.lookAt(rootPart.Position, targetPos)
+        
+        -- Tính toán góc lệch
+        local dotProduct = rootPart.CFrame.LookVector:Dot((targetPos - rootPart.Position).Unit)
+        local angle = math.acos(math.clamp(dotProduct, -1, 1))
+        
+        if math.deg(angle) > STOP_ANGLE then
+            -- Tắt tự động xoay của Roblox để script chiếm quyền
+            humanoid.AutoRotate = false
+            -- Xoay chậm dần đều (Lerp)
+            rootPart.CFrame = rootPart.CFrame:Lerp(targetCFrame, TURN_SPEED)
+        else
+            -- Khi đã nhìn thẳng rồi thì trả lại quyền cho hệ thống
+            humanoid.AutoRotate = true
+        end
+    else
+        humanoid.AutoRotate = true
+    end
+end)
